@@ -1,6 +1,4 @@
 const puppeteer = require('puppeteer')
-const csvjson = require('csvjson')
-const { writeFile } = require('fs/promises')
 
 Date.prototype.getLastDateOfYear = function() {
     this.setMonth(11)
@@ -52,13 +50,31 @@ class LatamBot {
 
     }
 
-    async *loadBy(fromCity, toCity, startAt = this.default_start_at, stopAt = this.default_stop_at, extractFunction) {
+    async *createUrlList(fromCity, toCity, startAt = this.default_start_at, stopAt = this.default_stop_at) {
+
+        const [year, month, day] = startAt.toISOString().slice(0, 10).split('-')
+
+        const uri = `${this.base_url}?fecha1_dia=${day}&fecha1_anomes=${year}-${month}&from_city1=${fromCity}&to_city1=${toCity}&nadults=1&nchildren=0&ninfants=0&ida_vuelta=ida&cabina=Y&application=lanpass#/`
+
+        yield { uri }
+        
+        if(startAt.getTime() === stopAt.getTime()) {
+            return
+        } 
+
+        startAt.addDays(1)
+
+        yield* this.createUrlList(fromCity, toCity, startAt, stopAt)
+
+    }
+
+    async *loadBy(fromCity, toCity, startAt = this.default_start_at, stopAt = this.default_stop_at) {
 
         const [year, month, day] = startAt.toISOString().slice(0, 10).split('-')
 
         const uri = `${this.base_url}?fecha1_dia=${day}&fecha1_anomes=${year}-${month}&from_city1=${fromCity}&to_city1=${toCity}&nadults=1&nchildren=0&ninfants=0&ida_vuelta=ida&cabina=Y&application=lanpass#/`
         
-        const result = await this.goToPage(uri, extractFunction)
+        const result = await this.goToPage(uri, this.extractPrices)
 
         yield result
         
@@ -70,7 +86,7 @@ class LatamBot {
 
         await new Promise(resolve => setTimeout(resolve, 5000))
 
-        yield* this.loadBy(fromCity, toCity, startAt, stopAt, extractFunction)
+        yield* this.loadBy(fromCity, toCity, startAt, stopAt)
 
     }
 
@@ -132,39 +148,6 @@ class LatamBot {
     async close() {
         await this.browser.close()
     }
-
 }
 
-
-;(async() => {
-
-    const latam = new LatamBot()
-
-    try {
-
-        const date_start = new Date('2022-02-14')
-        const date_end = new Date('2022-04-30')
-
-        const data = []
-
-        await latam.initialize()
-
-        for await(const values of latam.loadBy('GRU', 'FLN', date_start, date_end, latam.extractPrices)){
-            console.log(values)
-            values.map(value => data.push(value))
-        }
-
-        const csvData = csvjson.toCSV(data, {
-            headers: 'key'
-        })
-
-        await writeFile(`./data/latam_data.csv`, csvData)
-
-    } catch (err) {
-        console.error('error', err)
-    } finally {
-        await latam.close()
-    }
-
-
-})();
+module.exports.LatamBot = LatamBot
