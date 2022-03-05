@@ -44,10 +44,19 @@ class LatamBot {
         await this.page.setRequestInterception(true);
 
         this.page.on('request', (request) => {
-            if (request.resourceType() === 'image'|| request.resourceType() === 'stylesheet'|| request.resourceType() === 'font') request.abort();
-            else request.continue();
+
+            if (request.resourceType() === 'image'|| request.resourceType() === 'stylesheet'|| request.resourceType() === 'font') {
+                request.abort();
+            } else { 
+                request.continue();
+            }
+
         });
 
+    }
+
+    static getRandomNumber() {
+        return Math.round(Math.random(10) * 1000)
     }
 
     async *createUrlList(fromCity, toCity, startAt = this.default_start_at, stopAt = this.default_stop_at) {
@@ -68,15 +77,22 @@ class LatamBot {
 
     }
 
+    async *loadByUrl(url) {
+
+        const result = await this.goToPage(url)
+
+        yield { uri: url, data: result }
+    }
+
     async *loadBy(fromCity, toCity, startAt = this.default_start_at, stopAt = this.default_stop_at) {
 
         const [year, month, day] = startAt.toISOString().slice(0, 10).split('-')
 
         const uri = `${this.base_url}?fecha1_dia=${day}&fecha1_anomes=${year}-${month}&from_city1=${fromCity}&to_city1=${toCity}&nadults=1&nchildren=0&ninfants=0&ida_vuelta=ida&cabina=Y&application=lanpass#/`
         
-        const result = await this.goToPage(uri, this.extractPrices)
+        const result = await this.goToPage(uri)
 
-        yield result
+        yield { uri, data: result }
         
         if(startAt.getTime() === stopAt.getTime()) {
             return
@@ -90,7 +106,7 @@ class LatamBot {
 
     }
 
-    async goToPage(url, extractFunction) {
+    async goToPage(url) {
 
         await this.page.goto(url, {
             waitUntil: ['load', 'domcontentloaded', 'networkidle0', 'networkidle2'],
@@ -98,7 +114,7 @@ class LatamBot {
         })     
 
         const result = await this.page.evaluate(
-            Object.assign(extractFunction)
+            Object.assign(this.extractPrices)
         )
 
         return result   
@@ -145,7 +161,7 @@ class LatamBot {
         return data
     }
 
-    async close() {
+    async stop() {
         await this.browser.close()
     }
 }

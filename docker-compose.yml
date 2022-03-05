@@ -1,21 +1,29 @@
-version: '2'
+version: '3.5'
 services:
 
   zookeeper:
+    container_name: zookeeper
     image: confluentinc/cp-zookeeper:latest
+    networks: 
+      - kafka_network
+    restart: always
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
 
   kafka:
+    container_name: kafka
     image: confluentinc/cp-kafka:latest
     labels:
       - 'custom.project=kafkajs-zstd'
       - 'custom.service=kafka'
     depends_on:
       - zookeeper
+    restart: always
     ports:
       - 9092:9092
+    networks: 
+      - kafka_network
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -26,3 +34,23 @@ services:
       KAFKA_LOG4J_ROOT_LOGLEVEL: INFO
       KAFKA_LOG4J_LOGGERS: 'kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO'
       CONFLUENT_SUPPORT_METRICS_ENABLE: 'false'
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    depends_on:
+      - kafka
+      - zookeeper
+    restart: always
+    networks: 
+      - kafka_network
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+      - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:2181
+
+networks:
+  kafka_network:
+    name: kafka_network
