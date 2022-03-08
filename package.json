@@ -4,7 +4,7 @@
   "description": "",
   "main": "smiles-bot.js",
   "scripts": {
-    "latam": "node src/latam-bot.js",
+    "latam": "node src/latam/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

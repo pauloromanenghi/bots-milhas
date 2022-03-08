@@ -1,3 +1,5 @@
+'use strict'
+
 const puppeteer = require('puppeteer')
 
 Date.prototype.getLastDateOfYear = function() {
@@ -14,6 +16,7 @@ Date.prototype.addDays = function(value) {
 class LatamBot {
 
     constructor() {
+        this.clube_name = 'latam'
         this.base_url = `https://www.latam.com/pt_br/apps/personas/booking`
         this.default_start_at = new Date()
         this.default_stop_at = new Date().getLastDateOfYear()
@@ -23,8 +26,8 @@ class LatamBot {
 
         this.browser = await puppeteer.launch({
             headless: false,
-            defaultViewport: null,
-            userDataDir: './cache',
+            //defaultViewport: null,
+            //userDataDir: './cache',
             args: [
                 '--no-sandbox',
                 '--ignore-certificate-errors',  
@@ -33,9 +36,9 @@ class LatamBot {
                 '--disable-dev-shm-usage',
                 '--disable-accelerated-2d-canvas',
                 '--no-first-run',
-                '--disable-gpu',
+                //'--disable-gpu',
                 '--no-zygote',
-                '--single-process'
+                //'--single-process'
             ]
         })
     
@@ -55,10 +58,10 @@ class LatamBot {
 
     }
 
-    static getRandomNumber() {
-        return Math.round(Math.random(10) * 1000)
+    async delay(time = 5000) {
+        return new Promise(resolve => setTimeout(resolve, time))
     }
-
+    
     async *createUrlList(fromCity, toCity, startAt = this.default_start_at, stopAt = this.default_stop_at) {
 
         const [year, month, day] = startAt.toISOString().slice(0, 10).split('-')
@@ -77,13 +80,6 @@ class LatamBot {
 
     }
 
-    async *loadByUrl(url) {
-
-        const result = await this.goToPage(url)
-
-        yield { uri: url, data: result }
-    }
-
     async *loadBy(fromCity, toCity, startAt = this.default_start_at, stopAt = this.default_stop_at) {
 
         const [year, month, day] = startAt.toISOString().slice(0, 10).split('-')
@@ -92,15 +88,19 @@ class LatamBot {
         
         const result = await this.goToPage(uri)
 
-        yield { uri, data: result }
+        yield { 
+            clube_name: this.clube_name, 
+            uri, data: result 
+        }
         
+
         if(startAt.getTime() === stopAt.getTime()) {
             return
         } 
 
         startAt.addDays(1)
 
-        await new Promise(resolve => setTimeout(resolve, 5000))
+        await this.delay()
 
         yield* this.loadBy(fromCity, toCity, startAt, stopAt)
 
@@ -113,21 +113,17 @@ class LatamBot {
             timeout: 0
         })     
 
-        const result = await this.page.evaluate(
-            Object.assign(this.extractPrices)
-        )
-
-        return result   
+        return await this.page.evaluate(await this.extractPrices)
     }
 
-    extractPrices() {
+    async extractPrices() {
 
         const data = []
         const elements = document.getElementsByClassName('flight')
 
         const dateSelected = document.getElementsByClassName('week-view-day selected')[0]
-                                           .getElementsByTagName('time')[0]
-                                           .getAttribute('datetime')
+                                           ?.getElementsByTagName('time')[0]
+                                           ?.getAttribute('datetime')
 
         for(let element of elements){
 
@@ -135,6 +131,8 @@ class LatamBot {
             const departureElement = element.getElementsByClassName('departure')[0]
             const arrivalElement = element.getElementsByClassName('arrival')[0]
             const flightFarePriceElement = element.getElementsByClassName('flight-fare-price-label')[0]
+            const flightStopsDescription = element.getElementsByClassName('flight-summary-stops-description')[0]
+            const flightDuration = element.getElementsByClassName('duration')[0]
             
             const flightCode = flightElement.getAttribute('id')
             const departureAirport = departureElement.getElementsByTagName('abbr')[0].textContent
@@ -145,12 +143,24 @@ class LatamBot {
             const flightPrice = flightFarePriceElement.getElementsByClassName('value')[0].textContent
             const flightPriceType = flightFarePriceElement.getElementsByClassName('currency-symbol currency-symbol-redemption')[0].textContent
 
+            const stopDescription = flightStopsDescription.getElementsByClassName('sc-bdVaJa fuucJY')[0].textContent.toLowerCase()
+            const duration = flightDuration.textContent?.replace('–', '')
+
             const result = {
-                flight_code: flightCode,
-                departure_airport: departureAirport,
-                departure_date_time: `${dateSelected} ${departureTime}`,
-                arrival_airport: arrivalAirport,
-                arrival_date_time: `${dateSelected} ${arrivalDateTime}`,
+                flight: {
+                    code: flightCode,
+                    stops: stopDescription,
+                    duration: duration
+                },
+                departure: {
+                    airport: departureAirport,
+                    at: `${dateSelected} ${departureTime}`
+                },
+                arrival: {
+                    airport: arrivalAirport,
+                    at: `${dateSelected} ${arrivalDateTime}`
+                },
+                connections: [],
                 price_value: flightPrice,
                 price_type: flightPriceType
             }
