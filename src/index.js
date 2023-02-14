@@ -1,4 +1,4 @@
-const { LatamBot } = require('./latam-bot')
+const { LatamBot } = require('./scripts/latam-bot')
 
 const latam = new LatamBot()
 
@@ -8,8 +8,8 @@ const latam = new LatamBot()
 
         await latam.initialize()
 
-        const date_start = new Date('2022-03-06')
-        const date_end = new Date('2022-12-31')
+        const date_start = new Date('2023-02-01')
+        const date_end = new Date('2023-02-14')
         
         console.time()
 
